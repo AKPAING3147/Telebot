@@ -169,15 +169,41 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
             const movieDetails = await getMovieDetails(movieId);
             const posterUrl = getPosterUrl(movieDetails.poster_path);
 
-            // Post to channel
+            // Create keyboard with multiple "Watch Movie" options for channel post
+            const movieTitle = encodeURIComponent(movieDetails.title);
+            const movieYear = movieDetails.release_date ? new Date(movieDetails.release_date).getFullYear() : '';
+            const searchQuery = encodeURIComponent(`${movieDetails.title} ${movieYear} watch online`);
+
+            const watchMovieKeyboard = createInlineKeyboard([
+                [
+                    {
+                        text: '🎬 Watch Movie',
+                        url: `https://www.google.com/search?q=${searchQuery}`,
+                    },
+                ],
+                [
+                    {
+                        text: '📺 Find Streaming',
+                        url: `https://www.justwatch.com/us/search?q=${movieTitle}`,
+                    },
+                    {
+                        text: 'ℹ️ More Info',
+                        url: `https://www.themoviedb.org/movie/${movieId}`,
+                    },
+                ],
+            ]);
+
+            // Post to channel with Watch button
             if (posterUrl) {
                 await sendPhoto(CHANNEL_USERNAME, posterUrl, {
                     caption: formatChannelCaption(movieDetails),
                     parse_mode: 'HTML',
+                    reply_markup: watchMovieKeyboard,
                 });
             } else {
                 await sendMessage(CHANNEL_USERNAME, formatChannelCaption(movieDetails), {
                     parse_mode: 'HTML',
+                    reply_markup: watchMovieKeyboard,
                 });
             }
 
