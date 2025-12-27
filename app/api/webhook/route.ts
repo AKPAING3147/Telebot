@@ -210,24 +210,33 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
                 ? `https://t.me/${MOVIE_CHANNEL.replace('@', '')}?q=${movieTitle}`
                 : `https://www.google.com/search?q=${searchQuery}`;
 
-            const watchMovieKeyboard = createInlineKeyboard([
-                [
+            // Create keyboard - only show "Watch Movie" button if MOVIE_CHANNEL is configured
+            // This way, if you haven't uploaded the movie yet, users won't see the button
+            const keyboardButtons = [];
+
+            // Add "Watch Movie" button only if movie channel is set
+            if (MOVIE_CHANNEL) {
+                keyboardButtons.push([
                     {
                         text: t.watchButton,
                         url: watchMovieUrl,
                     },
-                ],
-                [
-                    {
-                        text: t.streamingButton,
-                        url: `https://www.justwatch.com/us/search?q=${movieTitle}`,
-                    },
-                    {
-                        text: t.moreInfoButton,
-                        url: `https://www.themoviedb.org/movie/${movieId}`,
-                    },
-                ],
+                ]);
+            }
+
+            // Always show streaming and info buttons
+            keyboardButtons.push([
+                {
+                    text: t.streamingButton,
+                    url: `https://www.justwatch.com/us/search?q=${movieTitle}`,
+                },
+                {
+                    text: t.moreInfoButton,
+                    url: `https://www.themoviedb.org/movie/${movieId}`,
+                },
             ]);
+
+            const watchMovieKeyboard = createInlineKeyboard(keyboardButtons);
 
             // Post to channel with Watch button
             if (posterUrl) {
