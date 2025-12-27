@@ -204,9 +204,10 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
             const movieYear = movieDetails.release_date ? new Date(movieDetails.release_date).getFullYear() : '';
             const searchQuery = encodeURIComponent(`${movieDetails.title} ${movieYear} watch online`);
 
-            // Use movie channel if configured, otherwise fallback to Google search
+            // Use movie channel with search query if configured, otherwise fallback to Google search
+            // URL format: https://t.me/CHANNEL?q=MOVIE_TITLE (searches in channel)
             const watchMovieUrl = MOVIE_CHANNEL
-                ? `https://t.me/${MOVIE_CHANNEL.replace('@', '')}`
+                ? `https://t.me/${MOVIE_CHANNEL.replace('@', '')}?q=${movieTitle}`
                 : `https://www.google.com/search?q=${searchQuery}`;
 
             const watchMovieKeyboard = createInlineKeyboard([
