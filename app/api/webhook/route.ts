@@ -181,12 +181,25 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
                 });
             }
 
-            // Send confirmation to user
+            // Send confirmation to user with button to visit channel
+            const channelUrl = `https://t.me/${CHANNEL_USERNAME.replace('@', '')}`;
+            const visitChannelKeyboard = createInlineKeyboard([
+                [
+                    {
+                        text: '📺 Visit Channel',
+                        url: channelUrl,
+                    },
+                ],
+            ]);
+
             await sendMessage(
                 chatId,
                 `✅ Successfully shared "${movieDetails.title}" to the channel!\n\n` +
-                `Check it out: ${CHANNEL_USERNAME}`,
-                { parse_mode: 'HTML' }
+                `👉 Click the button below to visit the channel and see your post!`,
+                {
+                    parse_mode: 'HTML',
+                    reply_markup: visitChannelKeyboard,
+                }
             );
         }
     } catch (error: any) {
