@@ -29,7 +29,8 @@ import {
  * - Callback queries (when user clicks "Share to Channel" button)
  */
 
-const CHANNEL_USERNAME = process.env.CHANNEL_USERNAME;
+const CHANNEL_USERNAME = process.env.CHANNEL_USERNAME; // Announcement channel
+const MOVIE_CHANNEL = process.env.MOVIE_CHANNEL; // Movie content channel
 
 export async function POST(request: NextRequest) {
     try {
@@ -203,11 +204,16 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
             const movieYear = movieDetails.release_date ? new Date(movieDetails.release_date).getFullYear() : '';
             const searchQuery = encodeURIComponent(`${movieDetails.title} ${movieYear} watch online`);
 
+            // Use movie channel if configured, otherwise fallback to Google search
+            const watchMovieUrl = MOVIE_CHANNEL
+                ? `https://t.me/${MOVIE_CHANNEL.replace('@', '')}`
+                : `https://www.google.com/search?q=${searchQuery}`;
+
             const watchMovieKeyboard = createInlineKeyboard([
                 [
                     {
                         text: t.watchButton,
-                        url: `https://www.google.com/search?q=${searchQuery}`,
+                        url: watchMovieUrl,
                     },
                 ],
                 [
