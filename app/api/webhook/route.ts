@@ -14,6 +14,12 @@ import {
     formatMovieMessage,
     formatChannelCaption,
 } from '@/lib/tmdb';
+import {
+    getTranslation,
+    getUserLanguage,
+    setUserLanguage,
+    Language,
+} from '@/lib/languages';
 
 /**
  * Telegram Webhook Handler
@@ -56,49 +62,57 @@ export async function POST(request: NextRequest) {
  */
 async function handleMessage(message: TelegramMessage) {
     const chatId = message.chat.id;
+    const userId = message.from.id;
     const text = message.text?.trim();
 
     if (!text) return;
 
+    // Get user's translations
+    const t = getTranslation(userId);
+
     // Handle /start command
     if (text === '/start') {
-        await sendMessage(
-            chatId,
-            '🎬 Welcome to the Movie Bot!\n\n' +
-            'Send me a movie name and I\'ll search for it.\n' +
-            'You can then share it to your channel with a single tap!\n\n' +
-            'Example: Try searching for "Inception" or "The Matrix"'
-        );
+        await sendMessage(chatId, t.welcome);
         return;
     }
 
     // Handle /help command
     if (text === '/help') {
-        await sendMessage(
-            chatId,
-            '📖 <b>How to use this bot:</b>\n\n' +
-            '1️⃣ Send me a movie name\n' +
-            '2️⃣ I\'ll search and show you the details\n' +
-            '3️⃣ Click "📢 Share to Channel" to post it\n' +
-            '4️⃣ The movie will be shared to your channel!\n\n' +
-            '<i>Make sure the bot is an admin in your channel.</i>',
-            { parse_mode: 'HTML' }
-        );
+        await sendMessage(chatId, t.help, { parse_mode: 'HTML' });
+        return;
+    }
+
+    // Handle /language command
+    if (text === '/language') {
+        const languageKeyboard = createInlineKeyboard([
+            [
+                {
+                    text: '🇬🇧 English',
+                    callback_data: 'lang_en',
+                },
+                {
+                    text: '🇲🇲 မြန်မာ',
+                    callback_data: 'lang_my',
+                },
+            ],
+        ]);
+
+        await sendMessage(chatId, t.languagePrompt, {
+            parse_mode: 'HTML',
+            reply_markup: languageKeyboard,
+        });
         return;
     }
 
     // Search for movies
     try {
         // Send searching message
-        await sendMessage(chatId, `🔍 Searching for "${text}"...`);
+        await sendMessage(chatId, t.searching.replace('{query}', text));
 
         const searchResults = await searchMovies(text);
 
         if (searchResults.results.length === 0) {
-            await sendMessage(
-                chatId,
-                '❌ No movies found. Please try a different search term.'
-            );
+            await sendMessage(chatId, t.noResults);
             return;
         }
 
@@ -110,7 +124,7 @@ async function handleMessage(message: TelegramMessage) {
         const keyboard = createInlineKeyboard([
             [
                 {
-                    text: '📢 Share to Channel',
+                    text: t.shareButton,
                     callback_data: `share_${movie.id}`,
                 },
             ],
@@ -132,24 +146,42 @@ async function handleMessage(message: TelegramMessage) {
         }
     } catch (error: any) {
         console.error('Error handling message:', error);
-        await sendMessage(
-            chatId,
-            '❌ Sorry, something went wrong while searching. Please try again later.'
-        );
+        await sendMessage(chatId, t.tryAgainLater);
     }
 }
 
 /**
  * Handle callback queries (button clicks)
- * Share movie to channel when user clicks the button
+ * Share movie to channel when user clicks the button, or handle language changes
  */
 async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
     const chatId = callbackQuery.message.chat.id;
+    const userId = callbackQuery.from.id;
     const callbackData = callbackQuery.data;
+
+    // Get user's translations
+    const t = getTranslation(userId);
+
+    // Handle language selection
+    if (callbackData.startsWith('lang_')) {
+        const newLang = callbackData.replace('lang_', '') as Language;
+        setUserLanguage(userId, newLang);
+
+        // Get new translations
+        const newT = getTranslation(userId);
+
+        await answerCallbackQuery(callbackQuery.id, {
+            text: newT.languageChanged,
+            show_alert: false,
+        });
+
+        await sendMessage(chatId, newT.languageChanged);
+        return;
+    }
 
     // Answer the callback query immediately
     await answerCallbackQuery(callbackQuery.id, {
-        text: 'Processing...',
+        text: t.searching.split(' ')[0], // Just the emoji
     });
 
     try {
@@ -158,10 +190,7 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
             const movieId = parseInt(callbackData.replace('share_', ''));
 
             if (!CHANNEL_USERNAME) {
-                await sendMessage(
-                    chatId,
-                    '❌ Channel username not configured. Please set CHANNEL_USERNAME in environment variables.'
-                );
+                await sendMessage(chatId, t.channelNotConfigured);
                 return;
             }
 
@@ -177,17 +206,17 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
             const watchMovieKeyboard = createInlineKeyboard([
                 [
                     {
-                        text: '🎬 Watch Movie',
+                        text: t.watchButton,
                         url: `https://www.google.com/search?q=${searchQuery}`,
                     },
                 ],
                 [
                     {
-                        text: '📺 Find Streaming',
+                        text: t.streamingButton,
                         url: `https://www.justwatch.com/us/search?q=${movieTitle}`,
                     },
                     {
-                        text: 'ℹ️ More Info',
+                        text: t.moreInfoButton,
                         url: `https://www.themoviedb.org/movie/${movieId}`,
                     },
                 ],
@@ -212,7 +241,7 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
             const visitChannelKeyboard = createInlineKeyboard([
                 [
                     {
-                        text: '📺 Visit Channel',
+                        text: t.visitChannelButton,
                         url: channelUrl,
                     },
                 ],
@@ -220,8 +249,7 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
 
             await sendMessage(
                 chatId,
-                `✅ Successfully shared "${movieDetails.title}" to the channel!\n\n` +
-                `👉 Click the button below to visit the channel and see your post!`,
+                t.successfullyShared.replace('{title}', movieDetails.title) + '\n\n' + t.clickToVisit,
                 {
                     parse_mode: 'HTML',
                     reply_markup: visitChannelKeyboard,
@@ -232,20 +260,20 @@ async function handleCallbackQuery(callbackQuery: TelegramCallbackQuery) {
         console.error('Error handling callback query:', error);
 
         // Send error message to user
-        let errorMessage = '❌ Failed to share movie to channel.\n\n';
+        let errorMessage = t.errorSharing;
 
         if (error.response?.data?.description) {
             const description = error.response.data.description;
 
             if (description.includes('bot is not a member')) {
-                errorMessage += '⚠️ Bot is not a member of the channel. Please add the bot to your channel and make it an admin.';
+                errorMessage += t.botNotMember;
             } else if (description.includes('not enough rights')) {
-                errorMessage += '⚠️ Bot doesn\'t have enough permissions. Please make the bot an admin in your channel.';
+                errorMessage += t.notEnoughRights;
             } else {
                 errorMessage += `Error: ${description}`;
             }
         } else {
-            errorMessage += 'Please try again later.';
+            errorMessage += t.tryAgainLater;
         }
 
         await sendMessage(chatId, errorMessage);
